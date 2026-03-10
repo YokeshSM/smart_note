@@ -1,0 +1,29 @@
+# Smart Note – Docker helper commands
+
+## Build (with your Supabase project)
+
+# Replace the values after = with YOUR Supabase URL + anon key.
+# Run from the repo root.
+sudo docker build \
+  --build-arg VITE_SUPABASE_URL="https://tstymriowjphusqaxyga.supabase.co" \
+  --build-arg VITE_SUPABASE_ANON_KEY="sb_publishable_CrO89X2rtXYOF00M8TMIbg_E9NSooNt" \
+  -t yokeshsm783/smart-note:latest .
+
+## Run locally
+
+# Expose on localhost:4173
+sudo docker run --rm -p 4173:80 smart-note:latest
+
+## Push image to Docker Hub (or other registry)
+
+# Log in first if needed: docker login
+sudo docker push yokeshsm783/smart-note:latest
+
+## Pull image (for other users)
+
+sudo docker pull yokeshsm783/smart-note:latest
+
+## Run pulled image
+
+sudo docker run --rm -p 4173:80 yokeshsm783/smart-note:latest
+
