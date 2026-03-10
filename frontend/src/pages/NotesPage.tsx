@@ -38,6 +38,10 @@ export const NotesPage: React.FC = () => {
     hasMore,
     search,
     setSearch,
+    filter,
+    setFilter,
+    updateNoteTags,
+    toggleFavorite,
   } = useNotes(isAuthenticated, selectedFolderId ?? undefined)
 
   const handleNewNote = () => {
@@ -72,6 +76,8 @@ export const NotesPage: React.FC = () => {
           search={search}
           onSearchChange={setSearch}
           onNewNote={handleNewNote}
+          filter={filter}
+          onFilterChange={setFilter}
         />
         <div className="flex-1 overflow-y-auto scrollbar-thin px-3 pb-4 space-y-1">
           {isLoading ? (
@@ -101,6 +107,7 @@ export const NotesPage: React.FC = () => {
                   onMove={moveNote}
                   onCopy={copyNote}
                   onDelete={deleteNote}
+                  onToggleFavorite={toggleFavorite}
                 />
               ))}
               {hasMore && (
@@ -127,6 +134,7 @@ export const NotesPage: React.FC = () => {
         onMove={moveNote}
         onCopy={copyNote}
         onDelete={deleteNote}
+        onTagsChange={updateNoteTags}
       />
     </AppLayout>
   )
