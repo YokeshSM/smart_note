@@ -21,6 +21,7 @@ import {
 import type { Note, SaveStatus, Folder, Tag } from '../../types';
 import { addTagToNote, ensureSystemTags, getTagsForNote, removeTagFromNote } from '../../services/api';
 import { Badge } from '../ui/Badge';
+import { summarizeNote } from '../../services/summarizer';
 
 interface NoteEditorProps {
   note: Note | null;
@@ -35,6 +36,8 @@ interface NoteEditorProps {
   onMove: (id: string, folderId: string | null) => Promise<void>;
   onCopy: (id: string, targetFolderId?: string | null) => Promise<Note>;
   onDelete: (id: string) => Promise<void>;
+  onTagsChange?: (id: string, tags: Tag[]) => void;
+  onDeleteEmpty?: (id: string) => Promise<void>;
 }
 
 const AUTOSAVE_DELAY_MS = 800;
@@ -58,6 +61,8 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
   onMove,
   onCopy,
   onDelete,
+  onTagsChange,
+  onDeleteEmpty,
 }) => {
   const [title, setTitle] = useState(note?.title ?? '');
   const [content, setContent] = useState(note?.content ?? '');
@@ -68,6 +73,8 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
   const [copying, setCopying] = useState(false);
   const [availableTags, setAvailableTags] = useState<Tag[]>([]);
   const [selectedTagIds, setSelectedTagIds] = useState<Set<string>>(new Set());
+  const [summary, setSummary] = useState('');
+  const [isSummarizing, setIsSummarizing] = useState(false);
 
   const systemTagMeta: Record<string, { icon: React.ReactNode }> = {
     Pinned: { icon: <Star className="w-3 h-3 mr-1" /> },
@@ -88,6 +95,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       currentNoteId.current = note?.id ?? null;
       setLocalSaveStatus('idle');
       setSelectedTagIds(new Set(note?.tags?.map((t) => t.id) ?? []));
+      setSummary('');
 
       // Clear any pending auto-save from the previous note
       if (autoSaveTimer.current) {
@@ -150,7 +158,11 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
         // If a note becomes completely empty, delete it automatically
         if (isEmpty) {
           try {
-            await onDelete(id);
+            if (onDeleteEmpty) {
+              await onDeleteEmpty(id);
+            } else {
+              await onDelete(id);
+            }
           } finally {
             currentNoteId.current = null;
             setLocalSaveStatus('idle');
@@ -185,6 +197,21 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
     scheduleAutoSave(title, val);
   };
 
+  const handleSummarize = async () => {
+    if (!note) return;
+    const baseTitle = title || note.title;
+    const baseContent = content || note.content;
+    if (!baseTitle.trim() && !baseContent.trim()) return;
+
+    setIsSummarizing(true);
+    try {
+      const s = await summarizeNote(baseTitle, baseContent);
+      setSummary(s || 'No summary available.');
+    } finally {
+      setIsSummarizing(false);
+    }
+  };
+
   const handleDelete = async () => {
     if (!currentNoteId.current) return;
     const ok = window.confirm('Delete this note? This cannot be undone.');
@@ -205,8 +232,9 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
 
   const toggleTag = async (tag: Tag) => {
     if (!note || !isAuthenticated) return;
-    const hasTag = selectedTagIds.has(tag.id);
-    const next = new Set(selectedTagIds);
+    const previous = new Set(selectedTagIds);
+    const hasTag = previous.has(tag.id);
+    const next = new Set(previous);
     if (hasTag) next.delete(tag.id); else next.add(tag.id);
     setSelectedTagIds(next);
     try {
@@ -215,9 +243,13 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       } else {
         await addTagToNote(note.id, tag.id);
       }
+      if (onTagsChange) {
+        const updatedTags = availableTags.filter((t) => next.has(t.id));
+        onTagsChange(note.id, updatedTags);
+      }
     } catch {
       // roll back on error
-      setSelectedTagIds(selectedTagIds);
+      setSelectedTagIds(previous);
     }
   };
 
@@ -312,6 +344,22 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
         <div className="flex items-center gap-2">
           {note && (
             <>
+              <button
+                type="button"
+                onClick={handleSummarize}
+                disabled={isSummarizing || (!title.trim() && !content.trim())}
+                title="Summarize this note"
+                className="
+                  hidden sm:inline-flex items-center gap-1 px-2 py-1 rounded-lg text-[11px]
+                  bg-indigo-50 text-indigo-600 hover:bg-indigo-100
+                  dark:bg-indigo-950/40 dark:text-indigo-300 dark:hover:bg-indigo-900
+                  disabled:opacity-50 disabled:cursor-not-allowed
+                  transition-colors
+                "
+              >
+                <span aria-hidden="true">🔍</span>
+                <span>{isSummarizing ? 'Summarizing…' : 'Summary'}</span>
+              </button>
               <div className="relative">
                 <button
                   type="button"
@@ -432,34 +480,57 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
           />
 
           {/* Metadata row */}
-          <div className="flex items-center justify-between gap-3 mb-4">
-            <p className="text-xs text-gray-400 dark:text-gray-600">
-              Created {createdDate}
-            </p>
-            {availableTags.length > 0 && (
-              <div className="flex flex-wrap gap-1 justify-end">
-                {availableTags.map((tag) => (
-                  <button
-                    key={tag.id}
-                    type="button"
-                    onClick={() => toggleTag(tag)}
-                    className="focus:outline-none"
-                  >
-                    <Badge
-                      color={selectedTagIds.has(tag.id) ? 'indigo' : 'gray'}
-                      className={selectedTagIds.has(tag.id)
-                        ? 'shadow-sm shadow-indigo-500/20'
-                        : 'opacity-80 hover:opacity-100'}
+          <div className="flex flex-col gap-2 mb-4">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs text-gray-400 dark:text-gray-600">
+                Created {createdDate}
+              </p>
+              {availableTags.length > 0 && (
+                <div className="flex flex-wrap gap-1 justify-end">
+                  {availableTags.map((tag) => (
+                    <button
+                      key={tag.id}
+                      type="button"
+                      onClick={() => toggleTag(tag)}
+                      className="focus:outline-none"
                     >
-                      <span className="inline-flex items-center">
-                        {systemTagMeta[tag.name]?.icon}
-                        <span>{tag.name}</span>
-                      </span>
-                    </Badge>
-                  </button>
-                ))}
+                      <Badge
+                        color={selectedTagIds.has(tag.id) ? 'indigo' : 'gray'}
+                        className={selectedTagIds.has(tag.id)
+                          ? 'shadow-sm shadow-indigo-500/20'
+                          : 'opacity-80 hover:opacity-100'}
+                      >
+                        <span className="inline-flex items-center">
+                          {systemTagMeta[tag.name]?.icon}
+                          <span>{tag.name}</span>
+                        </span>
+                      </Badge>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Summary box */}
+            <div
+              className="
+                mt-1 rounded-xl border border-indigo-100 dark:border-indigo-900
+                bg-indigo-50/70 dark:bg-indigo-950/40
+                px-3 py-2
+                text-xs text-indigo-900 dark:text-indigo-100
+              "
+            >
+              <div className="flex items-start gap-2">
+                <span className="mt-[1px]" aria-hidden="true">
+                  🔍
+                </span>
+                <p className="leading-snug">
+                  {summary
+                    ? summary
+                    : 'No summary yet. Use the Summary button in the toolbar to generate a brief overview of this note.'}
+                </p>
               </div>
-            )}
+            </div>
           </div>
 
           {/* Content */}

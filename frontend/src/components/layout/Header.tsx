@@ -8,11 +8,13 @@ interface HeaderProps {
   search: string;
   onSearchChange: (q: string) => void;
   onNewNote: () => void;
+  filter?: 'all' | 'pinned' | 'favorites';
+  onFilterChange?: (f: 'all' | 'pinned' | 'favorites') => void;
 }
 
 /**
  * Header for the note list panel (middle column).
- * Contains: title, note count badge, search bar, new-note button.
+ * Contains: title, note count badge, search bar, filters, new-note button.
  */
 export const Header: React.FC<HeaderProps> = ({
   title = 'Notes',
@@ -20,7 +22,11 @@ export const Header: React.FC<HeaderProps> = ({
   search,
   onSearchChange,
   onNewNote,
+  filter = 'all',
+  onFilterChange,
 }) => {
+  const showFilters = !!onFilterChange;
+
   return (
     <div className="flex-shrink-0 px-4 pt-5 pb-3 space-y-3">
       {/* Title row */}
@@ -60,6 +66,37 @@ export const Header: React.FC<HeaderProps> = ({
         onChange={onSearchChange}
         placeholder="Search notes..."
       />
+
+      {/* Filters (All / Pinned / Favs) */}
+      {showFilters && (
+        <div className="flex items-center gap-1.5 text-[11px]">
+          {[
+            { id: 'all', label: 'All' },
+            { id: 'pinned', label: 'Pinned' },
+            { id: 'favorites', label: 'Favs' },
+          ].map((opt) => {
+            const isActive = filter === opt.id;
+            return (
+              <button
+                key={opt.id}
+                type="button"
+                onClick={() => onFilterChange(opt.id as 'all' | 'pinned' | 'favorites')}
+                className={`
+                  px-2.5 py-1 rounded-full border text-xs font-medium
+                  transition-colors duration-150
+                  ${
+                    isActive
+                      ? 'bg-indigo-600 text-white border-indigo-600'
+                      : 'bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-transparent hover:bg-gray-200 dark:hover:bg-gray-700'
+                  }
+                `}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 };
