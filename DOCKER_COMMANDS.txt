@@ -14,6 +14,8 @@ sudo docker build \
 
 # Expose on localhost:4173 (auto restart unless stopped)
 sudo docker run --restart=always -p 4173:80 "${LOCAL_IMAGE}"
+sudo docker run --restart=always -p 4173:80 yokeshsm783/smart-note:latest
+
 
 ## Push image to Docker Hub (or other registry)
 
