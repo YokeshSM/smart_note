@@ -1,13 +1,17 @@
 # Smart Note – Docker helper commands
 
-VERSION="v0.0.0"  # this is automatically updated by the release workflow
+# Set by release workflow on tag push (e.g. v1.2.3). Edit manually for local builds.
+VERSION="v0.0.0"
 IMAGE="yokeshsm783/smart-note:${VERSION}"
 LOCAL_IMAGE="smart-note:${VERSION}"
 
-## Build image
+## Build (with your Supabase project)
 
-# Run from the repo root. Provide your own frontend env vars as needed.
+# Replace the values after = with YOUR Supabase URL + anon key.
+# Run from the repo root.
 sudo docker build \
+  --build-arg VITE_SUPABASE_URL="https://YOUR-PROJECT.supabase.co" \
+  --build-arg VITE_SUPABASE_ANON_KEY="YOUR_ANON_KEY" \
   -t "${LOCAL_IMAGE}" .
 
 ## Run locally

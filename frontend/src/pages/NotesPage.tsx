@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react'
+import React, { useEffect, useMemo, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import { AppLayout } from '../components/layout/AppLayout'
 import { Header } from '../components/layout/Header'
@@ -42,6 +42,8 @@ export const NotesPage: React.FC = () => {
     toggleFavorite,
   } = useNotes(isAuthenticated, selectedFolderId ?? undefined)
 
+  const [filter, setFilter] = useState<'all' | 'pinned' | 'favorites'>('all')
+
   const noteIdFromUrl = searchParams.get('note')
   useEffect(() => {
     if (noteIdFromUrl && !isLoading && filteredNotes.some((n) => n.id === noteIdFromUrl)) {
@@ -57,6 +59,20 @@ export const NotesPage: React.FC = () => {
     createNote('', '')
   }
 
+  const visibleNotes = useMemo(() => {
+    if (filter === 'pinned') {
+      return filteredNotes.filter((note) =>
+        (note.tags ?? []).some((t) => t.name === 'Pinned'),
+      )
+    }
+    if (filter === 'favorites') {
+      return filteredNotes.filter((note) =>
+        (note.tags ?? []).some((t) => t.name === 'Important'),
+      )
+    }
+    return filteredNotes
+  }, [filteredNotes, filter])
+
   return (
     <AppLayout
       selectedNote={selectedNote}
@@ -64,7 +80,7 @@ export const NotesPage: React.FC = () => {
       search={search}
       onSearchChange={setSearch}
       onNewNote={handleNewNote}
-      noteCount={filteredNotes.length}
+      noteCount={visibleNotes.length}
       folders={folders}
         selectedFolderId={selectedFolderId}
       onSelectFolder={setSelectedFolderId}
@@ -81,13 +97,15 @@ export const NotesPage: React.FC = () => {
           search={search}
           onSearchChange={setSearch}
           onNewNote={handleNewNote}
+          filter={filter}
+          onFilterChange={setFilter}
         />
         <div className="flex-1 overflow-y-auto scrollbar-thin px-3 pb-4 space-y-1">
           {isLoading ? (
             <div className="flex items-center justify-center h-32">
               <div className="w-5 h-5 border-2 border-indigo-600 border-t-transparent rounded-full animate-spin" />
             </div>
-          ) : filteredNotes.length === 0 ? (
+          ) : visibleNotes.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-40 text-center px-4">
               <p className="text-sm text-gray-400 dark:text-gray-600">No notes yet.</p>
               <button
@@ -99,7 +117,7 @@ export const NotesPage: React.FC = () => {
             </div>
           ) : (
             <>
-              {filteredNotes.map((note) => (
+              {visibleNotes.map((note) => (
                 <NoteCard
                   key={note.id}
                   note={note}
