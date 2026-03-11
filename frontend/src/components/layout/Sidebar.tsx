@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { FileText, FolderOpen, Folder, Plus, Moon, Sun, LogOut, LogIn, Sparkles, Trash2, ChevronRight } from 'lucide-react';
+import { FileText, FolderOpen, Folder, Plus, Moon, Sun, LogOut, LogIn, PenLine, Trash2, ChevronRight, Calendar } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { Avatar } from '../ui/Avatar';
@@ -45,7 +45,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
       {/* Logo + app name */}
       <div className="flex items-center gap-2.5 px-4 py-4 border-b border-gray-200 dark:border-gray-800">
         <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-indigo-600 to-indigo-500 flex items-center justify-center shadow-md shadow-indigo-500/25 flex-shrink-0">
-          <Sparkles size={15} className="text-white" />
+          <PenLine size={15} className="text-white" />
         </div>
         <span className="text-sm font-bold text-gray-900 dark:text-gray-50 truncate">Smart Notes</span>
       </div>
@@ -70,6 +70,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
             navigate('/notes', { replace: false })
             onSelectFolder(null)
           }}
+        />
+
+        <NavItem
+          icon={<Calendar size={16} />}
+          label="Calendar"
+          active={location.pathname.startsWith('/calendar')}
+          onClick={() => navigate('/calendar')}
         />
 
         <NavItem

@@ -1,16 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Note, SaveStatus, Tag } from '../types';
-import {
-  getNotes,
-  createNote,
-  updateNote,
-  trashNote,
-  copyNote as apiCopyNote,
-  deleteNote as apiDeleteNote,
-  ensureSystemTags,
-  addTagToNote,
-  removeTagFromNote,
-} from '../services/api';
+import type { Note, SaveStatus } from '../types';
+import { getNotes, createNote, updateNote, trashNote, copyNote as apiCopyNote } from '../services/api';
 
 const PAGE_SIZE = 20;
 
@@ -26,16 +16,11 @@ interface UseNotesReturn {
   moveNote: (id: string, folderId: string | null) => Promise<void>;
   copyNote: (id: string, targetFolderId?: string | null) => Promise<Note>;
   deleteNote: (id: string) => Promise<void>;
-  hardDeleteNote: (id: string) => Promise<void>;
   loadMore: () => void;
   hasMore: boolean;
   search: string;
   setSearch: (s: string) => void;
   filteredNotes: Note[];
-  filter: 'all' | 'pinned' | 'favorites';
-  setFilter: (f: 'all' | 'pinned' | 'favorites') => void;
-  updateNoteTags: (id: string, tags: Tag[]) => void;
-  toggleFavorite: (id: string) => Promise<void>;
 }
 
 export function useNotes(isAuthenticated: boolean, folderId?: string | null): UseNotesReturn {
@@ -47,7 +32,6 @@ export function useNotes(isAuthenticated: boolean, folderId?: string | null): Us
   const [page, setPage] = useState(1);
   const [hasMore, setHasMore] = useState(false);
   const [search, setSearch] = useState('');
-  const [filter, setFilter] = useState<'all' | 'pinned' | 'favorites'>('all');
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const loadingMoreRef = useRef(false);
 
@@ -193,20 +177,6 @@ export function useNotes(isAuthenticated: boolean, folderId?: string | null): Us
     [selectedNoteId]
   );
 
-  const handleHardDeleteNote = useCallback(
-    async (id: string): Promise<void> => {
-      setNotes((prev) => prev.filter((n) => n.id !== id));
-      if (selectedNoteId === id) setSelectedNoteId(null);
-
-      try {
-        await apiDeleteNote(id);
-      } catch {
-        // If hard delete fails, we silently ignore — the note was empty anyway.
-      }
-    },
-    [selectedNoteId]
-  );
-
   const handleMoveNote = useCallback(
     async (id: string, folderId: string | null): Promise<void> => {
       setNotes((prev) =>
@@ -235,61 +205,6 @@ export function useNotes(isAuthenticated: boolean, folderId?: string | null): Us
     []
   );
 
-  const updateNoteTags = useCallback((id: string, tags: Tag[]) => {
-    setNotes((prev) =>
-      prev.map((n) => (n.id === id ? { ...n, tags } : n))
-    );
-  }, []);
-
-  const toggleFavorite = useCallback(
-    async (id: string): Promise<void> => {
-      const current = notes.find((n) => n.id === id);
-      if (!current) return;
-
-      const hasImportant = (current.tags ?? []).some((t) => t.name === 'Important');
-
-      if (hasImportant) {
-        const importantTag = (current.tags ?? []).find((t) => t.name === 'Important');
-        if (!importantTag) return;
-
-        // Optimistic update: remove Important tag locally
-        setNotes((prev) =>
-          prev.map((n) =>
-            n.id === id
-              ? { ...n, tags: (n.tags ?? []).filter((t) => t.id !== importantTag.id) }
-              : n
-          )
-        );
-
-        try {
-          await removeTagFromNote(id, importantTag.id);
-        } catch {
-          // best-effort only; ignore error
-        }
-      } else {
-        try {
-          const systemTags = await ensureSystemTags();
-          const importantTag = systemTags.find((t) => t.name === 'Important');
-          if (!importantTag) return;
-
-          // Optimistic update: add Important tag locally
-          setNotes((prev) =>
-            prev.map((n) =>
-              n.id === id
-                ? { ...n, tags: [...(n.tags ?? []), importantTag] }
-                : n
-            )
-          );
-
-          await addTagToNote(id, importantTag.id);
-        } catch {
-          // ignore failures, UI will reconcile on next fetch
-        }
-      }
-    },
-    [notes]
-  );
-
   // Client-side search filter
   // Hide completely empty notes (no title + no content) so "opened and left" drafts
   // are not treated as real files in the UI.
@@ -299,25 +214,13 @@ export function useNotes(isAuthenticated: boolean, folderId?: string | null): Us
 
   const baseList = nonEmptyNotes;
 
-  const searchTerm = search.trim().toLowerCase();
-
-  const filteredNotes = baseList.filter((n) => {
-    const matchesSearch = !searchTerm
-      ? true
-      : n.title.toLowerCase().includes(searchTerm) ||
-        n.content.toLowerCase().includes(searchTerm) ||
-        (n.tags ?? []).some((t) => t.name.toLowerCase().includes(searchTerm));
-
-    if (!matchesSearch) return false;
-
-    if (filter === 'pinned') {
-      return (n.tags ?? []).some((t) => t.name === 'Pinned');
-    }
-    if (filter === 'favorites') {
-      return (n.tags ?? []).some((t) => t.name === 'Important');
-    }
-    return true; // 'all'
-  });
+  const filteredNotes = search.trim()
+    ? baseList.filter(
+        (n) =>
+          n.title.toLowerCase().includes(search.toLowerCase()) ||
+          n.content.toLowerCase().includes(search.toLowerCase())
+      )
+    : baseList;
 
   const selectedNote =
     notes.find((n) => n.id === selectedNoteId) ?? null;
@@ -334,15 +237,10 @@ export function useNotes(isAuthenticated: boolean, folderId?: string | null): Us
     moveNote: handleMoveNote,
     copyNote: handleCopyNote,
     deleteNote: handleDeleteNote,
-    hardDeleteNote: handleHardDeleteNote,
     loadMore,
     hasMore,
     search,
     setSearch,
     filteredNotes,
-    filter,
-    setFilter,
-    updateNoteTags,
-    toggleFavorite,
   };
 }
