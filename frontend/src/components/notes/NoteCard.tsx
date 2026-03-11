@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { Trash2, Copy, MoreVertical, Star, AlertTriangle, CheckSquare } from 'lucide-react';
+import { Trash2, Copy, MoreVertical, Star, AlertTriangle, CheckSquare, Heart } from 'lucide-react';
 import type { Note, Folder, Tag } from '../../types';
 import { Badge } from '../ui/Badge';
 
@@ -12,6 +12,7 @@ interface NoteCardProps {
   onMove: (id: string, folderId: string | null) => Promise<void>;
   onCopy: (id: string, targetFolderId?: string | null) => Promise<Note>;
   onDelete: (id: string) => Promise<void>;
+  onToggleFavorite?: (id: string) => void | Promise<void>;
 }
 
 function formatRelativeTime(iso: string): string {
@@ -39,6 +40,7 @@ export const NoteCard: React.FC<NoteCardProps> = ({
   onMove,
   onCopy,
   onDelete,
+  onToggleFavorite,
 }) => {
   const [isDeleting, setIsDeleting] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -65,6 +67,8 @@ export const NoteCard: React.FC<NoteCardProps> = ({
   const visibleTags: Tag[] = (note.tags ?? []).filter((t) =>
     Object.prototype.hasOwnProperty.call(systemTagMeta, t.name)
   );
+
+  const isFavorite = (note.tags ?? []).some((t) => t.name === 'Important');
 
   const handleDelete = async (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -142,8 +146,25 @@ export const NoteCard: React.FC<NoteCardProps> = ({
           )}
         </div>
 
-        {/* Actions: menu + delete */}
+        {/* Actions: heart + menu + delete */}
         <div className="flex items-center gap-0.5 flex-shrink-0">
+          {onToggleFavorite && (
+            <button
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                onToggleFavorite(note.id);
+              }}
+              title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
+              className={`
+                flex-shrink-0 p-1 rounded-md transition-all duration-150
+                focus:outline-none focus:opacity-100 focus:ring-1 focus:ring-pink-500
+                ${isFavorite ? 'text-pink-500 opacity-100' : 'opacity-0 group-hover:opacity-100 text-gray-300 dark:text-gray-500 hover:text-pink-500 hover:bg-pink-50 dark:hover:bg-pink-950/40'}
+              `}
+            >
+              <Heart size={13} className={isFavorite ? 'fill-current' : ''} />
+            </button>
+          )}
           <div className="relative">
             <button
               type="button"

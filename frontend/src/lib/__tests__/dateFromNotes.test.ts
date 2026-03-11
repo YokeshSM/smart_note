@@ -1,20 +1,20 @@
 import { describe, expect, it } from 'vitest';
 import { extractEventsFromNote } from '../dateFromNotes';
-import type { Note } from '../../../types';
+import type { Note } from '../../types';
 
 function mockNote(overrides: Partial<Note> & { title: string; content: string }): Note {
   return {
     id: 'note-1',
     userId: 'user-1',
     folderId: null,
-    title: overrides.title,
-    content: overrides.content,
     isPinned: false,
     deletedAt: null,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    tags: overrides.tags ?? [],
+    tags: [],
     ...overrides,
+    title: overrides.title,
+    content: overrides.content,
   };
 }
 
@@ -65,7 +65,7 @@ describe('dateFromNotes', () => {
     const note = mockNote({
       title: 'Pinned note',
       content: 'Meeting 2025-06-01',
-      tags: [{ id: 't1', userId: 'u1', name: 'Pinned', color: '#fff', createdAt: '', updatedAt: '' }],
+      tags: [{ id: 't1', userId: 'u1', name: 'Pinned', color: '#fff', createdAt: '' }],
     });
     const events = extractEventsFromNote(note);
     expect(events.every((e) => e.status === 'pinned')).toBe(true);
@@ -75,7 +75,7 @@ describe('dateFromNotes', () => {
     const note = mockNote({
       title: 'Important',
       content: '2025-07-01 deadline',
-      tags: [{ id: 't2', userId: 'u1', name: 'Important', color: '#f00', createdAt: '', updatedAt: '' }],
+      tags: [{ id: 't2', userId: 'u1', name: 'Important', color: '#f00', createdAt: '' }],
     });
     const events = extractEventsFromNote(note);
     expect(events.every((e) => e.status === 'important')).toBe(true);

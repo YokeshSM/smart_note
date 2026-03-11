@@ -36,6 +36,7 @@ interface NoteEditorProps {
   onMove: (id: string, folderId: string | null) => Promise<void>;
   onCopy: (id: string, targetFolderId?: string | null) => Promise<Note>;
   onDelete: (id: string) => Promise<void>;
+  onTagsChange?: (id: string, tags: Tag[]) => void;
 }
 
 const AUTOSAVE_DELAY_MS = 800;
@@ -59,6 +60,7 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
   onMove,
   onCopy,
   onDelete,
+  onTagsChange,
 }) => {
   const [title, setTitle] = useState(note?.title ?? '');
   const [content, setContent] = useState(note?.content ?? '');
@@ -223,8 +225,9 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
 
   const toggleTag = async (tag: Tag) => {
     if (!note || !isAuthenticated) return;
-    const hasTag = selectedTagIds.has(tag.id);
-    const next = new Set(selectedTagIds);
+    const previous = new Set(selectedTagIds);
+    const hasTag = previous.has(tag.id);
+    const next = new Set(previous);
     if (hasTag) next.delete(tag.id); else next.add(tag.id);
     setSelectedTagIds(next);
     try {
@@ -233,9 +236,12 @@ export const NoteEditor: React.FC<NoteEditorProps> = ({
       } else {
         await addTagToNote(note.id, tag.id);
       }
+      if (onTagsChange) {
+        const updatedTags = availableTags.filter((t) => next.has(t.id));
+        onTagsChange(note.id, updatedTags);
+      }
     } catch {
-      // roll back on error
-      setSelectedTagIds(selectedTagIds);
+      setSelectedTagIds(previous);
     }
   };
 
