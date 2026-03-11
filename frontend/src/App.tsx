@@ -4,6 +4,7 @@ import { AuthProvider, useAuth } from './context/AuthContext'
 import { LoginPage } from './pages/LoginPage'
 import { NotesPage } from './pages/NotesPage'
 import { TrashPage } from './pages/TrashPage'
+import { CalendarPage } from './pages/CalendarPage'
 import { SetupPage } from './pages/SetupPage'
 import { ResetPasswordPage } from './pages/ResetPasswordPage'
 import { isConfigured } from './lib/supabase'
@@ -31,6 +32,7 @@ function AppRoutes() {
       />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/notes" element={<NotesPage />} />
+      <Route path="/calendar" element={<CalendarPage />} />
       <Route path="/trash" element={<TrashPage />} />
       <Route path="*" element={<Navigate to="/notes" replace />} />
     </Routes>

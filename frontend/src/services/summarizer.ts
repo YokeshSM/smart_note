@@ -1,13 +1,15 @@
 const FALLBACK_MAX_CHARS = 160;
 
+const GROQ_CHAT_URL = 'https://api.groq.com/openai/v1/chat/completions';
+
 /**
- * Summarize a note using an external AI endpoint when configured,
+ * Summarize a note using Groq API when configured,
  * with a simple in-browser fallback when not.
  *
- * ApyHub integration:
- * - Set VITE_SUMMARIZER_API_URL to "https://api.apyhub.com/ai/summarize-text"
- *   or "https://api.apyhub.com/ai/summarize-url" (if you prefer URL-based summarization).
- * - Set VITE_APYHUB_TOKEN to your ApyHub token; it will be sent as the "apy-token" header.
+ * Groq integration:
+ * - Set VITE_GROQ_API_KEY to your Groq API key (from https://console.groq.com).
+ *   It is sent as Bearer token to Groq's chat completions endpoint.
+ * - If unset or the request fails, a short heuristic summary is returned.
  */
 export async function summarizeNote(title: string, content: string): Promise<string> {
   const normalizedTitle = (title ?? '').trim();
@@ -16,47 +18,49 @@ export async function summarizeNote(title: string, content: string): Promise<str
 
   if (!text) return '';
 
-  const endpoint = import.meta.env.VITE_SUMMARIZER_API_URL;
-  const apyToken = import.meta.env.VITE_APYHUB_TOKEN;
+  const groqApiKey = import.meta.env.VITE_GROQ_API_KEY;
 
-  if (endpoint) {
+  if (groqApiKey) {
     try {
-      const headers: Record<string, string> = {
-        'Content-Type': 'application/json',
-      };
+      const prompt = [
+        normalizedTitle ? `Title: ${normalizedTitle}` : null,
+        normalizedContent || null,
+      ]
+        .filter(Boolean)
+        .join('\n\n');
 
-      if (apyToken) {
-        headers['apy-token'] = apyToken;
-      }
-
-      const res = await fetch(endpoint, {
+      const res = await fetch(GROQ_CHAT_URL, {
         method: 'POST',
-        headers,
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${groqApiKey}`,
+        },
         body: JSON.stringify({
-          // ApyHub summarize-text expects a single "text" field plus options
-          text,
-          summary_length: 'short',
-          output_language: 'en',
+          model: 'llama-3.1-8b-instant',
+          messages: [
+            {
+              role: 'system',
+              content:
+                'You summarize notes briefly and clearly. Reply with only the summary: 1–2 short sentences, max 50 words. No headings, bullets, or extra commentary.',
+            },
+            { role: 'user', content: `Summarize this note:\n\n${prompt}` },
+          ],
+          max_tokens: 150,
+          temperature: 0.3,
         }),
       });
 
       if (res.ok) {
         const data = await res.json();
-        const summary =
-          typeof data.summary === 'string'
-            ? data.summary
-            : typeof data.data?.summary === 'string'
-              ? data.data.summary
-              : '';
-
-        if (summary.trim().length > 0) return summary.trim();
+        const summary = data.choices?.[0]?.message?.content?.trim?.();
+        if (summary && summary.length > 0) return summary;
       }
     } catch {
       // fall through to local heuristic summary
     }
   }
 
-  // Simple heuristic summary if no AI endpoint is configured or it fails.
+  // Simple heuristic summary if Groq is not configured or the request fails.
   const firstSentenceMatch = text.match(/[^.!?]+[.!?]/);
   const candidate = (firstSentenceMatch?.[0] ?? text).trim();
 
@@ -66,4 +70,3 @@ export async function summarizeNote(title: string, content: string): Promise<str
 
   return `${candidate.slice(0, FALLBACK_MAX_CHARS - 1).trimEnd()}…`;
 }
-
