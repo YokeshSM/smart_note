@@ -38,6 +38,8 @@ export const NotesPage: React.FC = () => {
     hasMore,
     search,
     setSearch,
+    updateNoteTags,
+    toggleFavorite,
   } = useNotes(isAuthenticated, selectedFolderId ?? undefined)
 
   const noteIdFromUrl = searchParams.get('note')
@@ -108,6 +110,7 @@ export const NotesPage: React.FC = () => {
                   onMove={moveNote}
                   onCopy={copyNote}
                   onDelete={deleteNote}
+                  onToggleFavorite={toggleFavorite}
                 />
               ))}
               {hasMore && (
@@ -134,6 +137,7 @@ export const NotesPage: React.FC = () => {
         onMove={moveNote}
         onCopy={copyNote}
         onDelete={deleteNote}
+        onTagsChange={updateNoteTags}
       />
     </AppLayout>
   )

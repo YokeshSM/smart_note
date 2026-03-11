@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import type { Note, SaveStatus } from '../types';
-import { getNotes, createNote, updateNote, trashNote, copyNote as apiCopyNote } from '../services/api';
+import type { Note, SaveStatus, Tag } from '../types';
+import { getNotes, createNote, updateNote, trashNote, copyNote as apiCopyNote, ensureSystemTags, addTagToNote, removeTagFromNote } from '../services/api';
 
 const PAGE_SIZE = 20;
 
@@ -21,6 +21,8 @@ interface UseNotesReturn {
   search: string;
   setSearch: (s: string) => void;
   filteredNotes: Note[];
+  updateNoteTags: (id: string, tags: Tag[]) => void;
+  toggleFavorite: (id: string) => Promise<void>;
 }
 
 export function useNotes(isAuthenticated: boolean, folderId?: string | null): UseNotesReturn {
@@ -205,6 +207,43 @@ export function useNotes(isAuthenticated: boolean, folderId?: string | null): Us
     []
   );
 
+  const updateNoteTags = useCallback((id: string, tags: Tag[]) => {
+    setNotes((prev) =>
+      prev.map((n) => (n.id === id ? { ...n, tags } : n))
+    );
+  }, []);
+
+  const toggleFavorite = useCallback(
+    async (id: string): Promise<void> => {
+      const note = notes.find((n) => n.id === id);
+      if (!note) return;
+      const hasImportant = (note.tags ?? []).some((t) => t.name === 'Important');
+      if (hasImportant) {
+        const importantTag = (note.tags ?? []).find((t) => t.name === 'Important');
+        if (!importantTag) return;
+        const nextTags = (note.tags ?? []).filter((t) => t.id !== importantTag.id);
+        setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, tags: nextTags } : n)));
+        try {
+          await removeTagFromNote(id, importantTag.id);
+        } catch {
+          /* best-effort */
+        }
+      } else {
+        try {
+          const systemTags = await ensureSystemTags();
+          const importantTag = systemTags.find((t) => t.name === 'Important');
+          if (!importantTag) return;
+          const nextTags = [...(note.tags ?? []), importantTag];
+          setNotes((prev) => prev.map((n) => (n.id === id ? { ...n, tags: nextTags } : n)));
+          await addTagToNote(id, importantTag.id);
+        } catch {
+          /* best-effort */
+        }
+      }
+    },
+    [notes]
+  );
+
   // Client-side search filter
   // Hide completely empty notes (no title + no content) so "opened and left" drafts
   // are not treated as real files in the UI.
@@ -242,5 +281,7 @@ export function useNotes(isAuthenticated: boolean, folderId?: string | null): Us
     search,
     setSearch,
     filteredNotes,
+    updateNoteTags,
+    toggleFavorite,
   };
 }
