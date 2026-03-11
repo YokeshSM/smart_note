@@ -44,32 +44,50 @@ jobs:
       - name: Build frontend
         run: npm run build
 
-      - name: Update version in docs
-        working-directory: .
+      - name: Bump version in README and DOCKER_COMMANDS
+        working-directory: ..
         run: |
           VERSION="${GITHUB_REF_NAME}"
-          echo "Using version ${VERSION}"
+          echo "Bumping to ${VERSION}"
+          sed -i "s/v[0-9]*\.[0-9]*\.[0-9]*/${VERSION}/" README.md
+          sed -i "s/^VERSION=\"v[0-9]*\.[0-9]*\.[0-9]*\"$/VERSION=\"${VERSION}\"/" DOCKER_COMMANDS.txt
 
-          # Update version in DOCKER_COMMANDS.txt
-          sed -i "s/^VERSION=\".*\"$/VERSION=\"${VERSION}\"/" DOCKER_COMMANDS.txt
+      - name: Derive change type from commit message
+        working-directory: ..
+        run: |
+          MSG="$(git log -1 --pretty=%B "${GITHUB_REF}")"
+          echo "Last commit message:"
+          echo "${MSG}"
 
-          # Update version in README.md
-          sed -i "s/Current Docker image tag: \`.*\`/Current Docker image tag: \`${VERSION}\`/" README.md
+          TYPE="Update"
+          if echo "${MSG}" | grep -iE '^(feat|feature):'; then
+            TYPE="Feature"
+          elif echo "${MSG}" | grep -iE '^(fix|bugfix|bug):'; then
+            TYPE="Bug fix"
+          elif echo "${MSG}" | grep -iE '^(chore|refactor):'; then
+            TYPE="Refactor"
+          fi
+
+          echo "CHANGE_TYPE=${TYPE}" >> "${GITHUB_ENV}"
+          {
+            echo 'LAST_COMMIT_MSG<<EOF'
+            echo "${MSG}"
+            echo 'EOF'
+          } >> "${GITHUB_ENV}"
 
       - name: Commit and push version bump
-        if: ${{ github.ref_type == 'tag' }}
-        working-directory: .
+        working-directory: ..
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           git add README.md DOCKER_COMMANDS.txt
-          if git diff --cached --quiet; then
+          if git diff --staged --quiet; then
             echo "No version changes to commit."
           else
             git commit -m "chore: bump version to ${GITHUB_REF_NAME}"
-            git push origin HEAD:master
+            git push origin HEAD:master || git push origin HEAD:main
           fi
 
       - name: Upload build artifact
@@ -81,6 +99,14 @@ jobs:
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
+          name: "${{ github.ref_name }} - ${{ env.CHANGE_TYPE }}"
+          body: |
+            ## Type
+            ${{ env.CHANGE_TYPE }}
+
+            ## Summary
+            ${{ env.LAST_COMMIT_MSG }}
+
           files: |
             frontend/dist/**
         env:
